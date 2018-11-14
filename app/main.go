@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/buger/jsonparser"
+	"github.com/line/line-bot-sdk-go/linebot"
 )
 
 type DictService interface {
@@ -29,25 +29,62 @@ type ServiceController struct {
 	dictService DictService
 }
 
+type DictBot struct {
+	serviceController ServiceController
+	client            *linebot.Client
+}
+
 func main() {
-	fmt.Print("Please enter word: ")
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		word := scanner.Text()
-		serviceController := &ServiceController{
+	client, err := linebot.New(os.Getenv("LINE_BOT_SECRET"), os.Getenv("LINE_BOT_TOKEN"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	bot := &DictBot{
+		serviceController: ServiceController{
 			dictService: &OxfordService{
 				appId:  os.Getenv("OXFORD_API_ID"),
 				appKey: os.Getenv("OXFORD_API_KEY"),
 			},
-		}
-		definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
-		if err != nil {
-			fmt.Println(err.Error())
+		},
+		client: client,
+	}
+	http.HandleFunc("/callback", bot.Response)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+	fmt.Println("Runnign at :" + port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (this *DictBot) Response(w http.ResponseWriter, r *http.Request) {
+	events, err := this.client.ParseRequest(r)
+	if err != nil {
+		if err == linebot.ErrInvalidSignature {
+			w.WriteHeader(400)
 		} else {
-			fmt.Println(definistions)
-			fmt.Println(synonyms)
+			w.WriteHeader(500)
 		}
-		fmt.Print("Please enter word: ")
+		return
+	}
+	for _, event := range events {
+		if event.Type == linebot.EventTypeMessage {
+			switch message := event.Message.(type) {
+			case *linebot.TextMessage:
+				word := message.Text
+				definistions, synonyms, err := this.serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
+				if _, err = this.client.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(definistions), linebot.NewTextMessage(synonyms)).Do(); err != nil {
+					log.Print(err)
+				}
+			}
+		} else if event.Type == linebot.EventTypeJoin {
+			replyMessage := "Thanks for adding me. I'm Choo Dict Bot, I'm here to help you to find English word definitions and synonyms. Try to send me some words."
+			if _, err = this.client.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(replyMessage)).Do(); err != nil {
+				log.Print(err)
+			}
+		}
 	}
 }
 

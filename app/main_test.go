@@ -124,7 +124,7 @@ func TestOxfordServiceFindDefinitions(t *testing.T) {
 		err  error
 	}{
 		{
-			"line",
+			"line line2",
 			"a long, narrow mark or band",
 			nil,
 		},
@@ -167,7 +167,7 @@ func TestOxfordServiceFindSynonyms(t *testing.T) {
 		err  error
 	}{
 		{
-			"line",
+			"line line2",
 			"bar, dash, rule, score and underline",
 			nil,
 		},
