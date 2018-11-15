@@ -3,7 +3,8 @@
 ## Live Testing
 - The webhook URL for Line Messaging API will be https://choo-dict-bot.herokuapp.com/callback
 - Bot ID is [@lzp7933a](http://line.me/ti/p/~@lzp7933a)
-![QR Code][https://qr-official.line.me/M/fdAHRY11Na.png]
+
+![alt text](https://qr-official.line.me/M/fdAHRY11Na.png "QR Code")
 
 ## Prerequisites for Development
 - Mac or Linux which can run shell script
@@ -24,7 +25,7 @@
 - Config Heroku App name in deploy.sh
 - $ ./deploy.sh
 
-## Tect Stack
+## Tech Stack
 - Go
 - Oxford Dictionaries API
 - Line Messaging API
