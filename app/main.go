@@ -254,14 +254,14 @@ func NewServiceController(dictService DictService, maxPerMinute int) *ServiceCon
 
 func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word string) (string, string, error) {
 	if this.concurrent >= this.maxPerMinute {
-		return "", "", errors.New("Sorry, we've reached the number of requests limit, please wait for 1 minute and try again")
+		return "", "", errors.New("Sorry, we've reached the number of requests limit, please wait for 1 minute and try again.")
 	}
 	this.userProgressMux.Lock()
 	progress := this.userProgress[userID]
 	this.userProgressMux.Unlock()
 	if progress == 0 {
 		this.concurrentMux.Lock()
-		this.concurrent++
+		this.concurrent += 2
 		this.concurrentMux.Unlock()
 		this.userProgressMux.Lock()
 		this.userProgress[userID] = 2
@@ -271,6 +271,7 @@ func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word st
 		synonymsCh := make(chan string)
 		errorCh := make(chan error)
 		go func() {
+			time.Sleep(time.Duration(60000/this.maxPerMinute) * time.Millisecond)
 			res, err := this.dictService.FindDefinitions(word)
 			if err != nil {
 				errorCh <- err
@@ -280,6 +281,7 @@ func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word st
 
 		}()
 		go func() {
+			time.Sleep(time.Duration(60000/this.maxPerMinute) * time.Millisecond)
 			res, err := this.dictService.FindSynonyms(word)
 			if err != nil {
 				errorCh <- err
@@ -318,6 +320,6 @@ func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word st
 		}
 		return definistions, synonyms, nil
 	} else {
-		return "", "", errors.New("You're too fast, please wait for the result of previous inquiry")
+		return "", "", errors.New("You're too fast, please slow down.")
 	}
 }

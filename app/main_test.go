@@ -284,15 +284,14 @@ func TestServiceControllerFindDefinitionsAndSynonyms(t *testing.T) {
 
 	// Same user at the time
 	time.Sleep(5 * time.Millisecond)
-	wantErr := "You're too fast, please wait for the result of previous inquiry"
+	wantErr := "You're too fast, please slow down."
 	definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
 	if err == nil || err.Error() != wantErr {
 		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q", "dummy_user", word, definistions, synonyms, err, wantErr)
 	}
 
 	//Same user after previous result
-	time.Sleep(30 * time.Millisecond)
-	wantErr = "You're too fast, please wait for the result of previous inquiry"
+	time.Sleep(2 * time.Second)
 	definistions, synonyms, err = serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
 	if definistions != wantDefinistions || synonyms != wantSynonyms {
 		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q", "dummy_user", word, definistions, synonyms, err, wantDefinistions, wantSynonyms)
@@ -335,7 +334,7 @@ func TestConcurrentLoadServiceControllerFindDefinitionsAndSynonyms(t *testing.T)
 	userID := "dummy_user1"
 	wantDefinistions := ""
 	wantSynonyms := ""
-	wantErr := "Sorry, we've reached the number of requests limit, please wait for 1 minute and try again"
+	wantErr := "Sorry, we've reached the number of requests limit, please wait for 1 minute and try again."
 	definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms(userID, word)
 	if definistions != wantDefinistions || synonyms != wantSynonyms || err == nil || err.Error() != wantErr {
 		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q %q", userID, word, definistions, synonyms, err, wantDefinistions, wantSynonyms, wantErr)
