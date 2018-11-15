@@ -2,6 +2,7 @@
 
 ## Note
 - There is Load testing with 10,000 concurrent requests in Unit Testing but Oxford API limit is 60 requests per minute, So Live Testing will support only 60 requests per minute
+- Repo: https://github.com/choobot/choo-dict-bot/
 
 ## Live Testing
 - The webhook URL for Line Messaging API will be https://choo-dict-bot.herokuapp.com/callback
