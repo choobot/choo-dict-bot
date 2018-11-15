@@ -2,11 +2,11 @@ package main
 
 import (
 	"errors"
+	"os"
+	"strconv"
 	"testing"
+	"time"
 )
-
-var appId = "cf094011"
-var appKey = "f551e904c5b65e71766ff179cf486d07"
 
 func TestOxfordServiceMapToString(t *testing.T) {
 	cases := []struct {
@@ -39,8 +39,9 @@ func TestOxfordServiceMapToString(t *testing.T) {
 	}
 	for _, c := range cases {
 		service := &OxfordService{
-			appId:  appId,
-			appKey: appKey,
+			appId:          os.Getenv("OXFORD_API_ID"),
+			appKey:         os.Getenv("OXFORD_API_KEY"),
+			endpointPrefix: "https://od-api.oxforddictionaries.com",
 		}
 		got := service.MapToString(c.in)
 		if got != c.want {
@@ -73,8 +74,9 @@ func TestOxfordServiceUnmarshallSynonyms(t *testing.T) {
 	}
 	for _, c := range cases {
 		service := &OxfordService{
-			appId:  appId,
-			appKey: appKey,
+			appId:          os.Getenv("OXFORD_API_ID"),
+			appKey:         os.Getenv("OXFORD_API_KEY"),
+			endpointPrefix: "https://od-api.oxforddictionaries.com",
 		}
 		got := service.UnmarshallSynonyms(c.in)
 		if got != c.want {
@@ -107,8 +109,9 @@ func TestOxfordServiceUnmarshallDefinitions(t *testing.T) {
 	}
 	for _, c := range cases {
 		service := &OxfordService{
-			appId:  appId,
-			appKey: appKey,
+			appId:          os.Getenv("OXFORD_API_ID"),
+			appKey:         os.Getenv("OXFORD_API_KEY"),
+			endpointPrefix: "https://od-api.oxforddictionaries.com",
 		}
 		got := service.UnmarshallDefinitions(c.in)
 		if got != c.want {
@@ -124,7 +127,7 @@ func TestOxfordServiceFindDefinitions(t *testing.T) {
 		err  error
 	}{
 		{
-			"line line2",
+			"line",
 			"a long, narrow mark or band",
 			nil,
 		},
@@ -135,14 +138,15 @@ func TestOxfordServiceFindDefinitions(t *testing.T) {
 		},
 		{
 			"choopong",
-			"",
-			errors.New("No definition for 'choopong'."),
+			"No definition for 'choopong'.",
+			nil,
 		},
 	}
 	for _, c := range cases {
 		service := &OxfordService{
-			appId:  appId,
-			appKey: appKey,
+			appId:          os.Getenv("OXFORD_API_ID"),
+			appKey:         os.Getenv("OXFORD_API_KEY"),
+			endpointPrefix: "https://od-api.oxforddictionaries.com",
 		}
 		got, err := service.FindDefinitions(c.in)
 		if got != c.want || (c.err == nil && err != nil) || (c.err != nil && c.err.Error() != err.Error()) {
@@ -150,13 +154,30 @@ func TestOxfordServiceFindDefinitions(t *testing.T) {
 		}
 	}
 
+	//Test if invalid API ID, Key
 	service := &OxfordService{
-		appId:  "dummy",
-		appKey: "dummy",
+		appId:          "dummy",
+		appKey:         "dummy",
+		endpointPrefix: "https://od-api.oxforddictionaries.com",
 	}
-	_, err := service.FindDefinitions("dummy")
+
+	word := "dummy"
+	wantErr := "Authentication failed"
+	_, err := service.FindDefinitions(word)
 	if err.Error() != "Authentication failed" {
-		t.Errorf("OxfordService.FindDefinitions(%q) == %q , want %q", "dummy", err, "")
+		t.Errorf("OxfordService.FindDefinitions(%q) == %q , want %q", word, err, wantErr)
+	}
+
+	//Test if error by HTTP client
+	service = &OxfordService{
+		appId:          "dummy",
+		appKey:         "dummy",
+		endpointPrefix: "https://dummydomain",
+	}
+	_, err = service.FindDefinitions(word)
+	wantErr = "Get https://dummydomain/api/v1/entries/en/dummy: dial tcp: lookup dummydomain: no such host"
+	if err.Error() != wantErr {
+		t.Errorf("OxfordService.FindDefinitions(%q) == %q , want %q", word, err, wantErr)
 	}
 }
 
@@ -167,7 +188,7 @@ func TestOxfordServiceFindSynonyms(t *testing.T) {
 		err  error
 	}{
 		{
-			"line line2",
+			"line",
 			"bar, dash, rule, score and underline",
 			nil,
 		},
@@ -178,47 +199,156 @@ func TestOxfordServiceFindSynonyms(t *testing.T) {
 		},
 		{
 			"choopong",
-			"",
-			errors.New("No synonyms for 'choopong'."),
+			"No synonyms for 'choopong'.",
+			nil,
 		},
 	}
 	for _, c := range cases {
 		service := &OxfordService{
-			appId:  appId,
-			appKey: appKey,
+			appId:          os.Getenv("OXFORD_API_ID"),
+			appKey:         os.Getenv("OXFORD_API_KEY"),
+			endpointPrefix: "https://od-api.oxforddictionaries.com",
 		}
 		got, err := service.FindSynonyms(c.in)
 		if got != c.want || (c.err == nil && err != nil) || (c.err != nil && c.err.Error() != err.Error()) {
 			t.Errorf("OxfordService.FindSynonyms(%q) == %q, %q , want %q, %q", c.in, got, err, c.want, c.err)
 		}
 	}
+	//Test if invalid API ID, Key
 	service := &OxfordService{
-		appId:  "dummy",
-		appKey: "dummy",
+		appId:          "dummy",
+		appKey:         "dummy",
+		endpointPrefix: "https://od-api.oxforddictionaries.com",
 	}
-	_, err := service.FindSynonyms("dummy")
+
+	word := "dummy"
+	wantErr := "Authentication failed"
+	_, err := service.FindSynonyms(word)
 	if err.Error() != "Authentication failed" {
-		t.Errorf("OxfordService.FindSynonyms(%q) == %q , want %q", "dummy", err, "")
+		t.Errorf("OxfordService.FindSynonyms(%q) == %q , want %q", word, err, wantErr)
+	}
+
+	//Test if error by HTTP client
+	service = &OxfordService{
+		appId:          "dummy",
+		appKey:         "dummy",
+		endpointPrefix: "https://dummydomain",
+	}
+	_, err = service.FindSynonyms(word)
+	wantErr = "Get https://dummydomain/api/v1/entries/en/dummy/synonyms: dial tcp: lookup dummydomain: no such host"
+	if err.Error() != wantErr {
+		t.Errorf("OxfordService.FindSynonyms(%q) == %q , want %q", word, err, wantErr)
 	}
 }
 
-func TestServiceControllerFindDefinitionsAndSynonyms(t *testing.T) {
-	serviceController := &ServiceController{
-		dictService: &OxfordService{},
+type MockDickService struct {
+}
+
+func (this *MockDickService) FindDefinitions(word string) (string, error) {
+	if word == "delay_word" {
+		time.Sleep(10 * time.Millisecond)
+	} else if word == "error_word" {
+		return "", errors.New("DummyError")
 	}
+	return "a long, narrow mark or band", nil
+}
+func (this *MockDickService) FindSynonyms(word string) (string, error) {
+	if word == "delay_word" {
+		time.Sleep(10 * time.Millisecond)
+	} else if word == "error_word" {
+		return "", errors.New("DummyError")
+	}
+	return "bar, dash, rule, score and underline", nil
+}
+
+func TestServiceControllerFindDefinitionsAndSynonyms(t *testing.T) {
+	dictService := &MockDickService{}
+	serviceController := NewServiceController(dictService, 60)
+	word := "delay_word"
 	wantDefinistions := "a long, narrow mark or band"
 	wantSynonyms := "bar, dash, rule, score and underline"
 	go func() {
-		definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms("dummy_user", "line")
+		definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
 		if definistions != wantDefinistions || synonyms != wantSynonyms {
-			t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q", "dummy_user", "line", definistions, synonyms, err, wantDefinistions, wantSynonyms)
+			t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q", "dummy_user", word, definistions, synonyms, err, wantDefinistions, wantSynonyms)
 		}
 	}()
 
-	// wantErr := "You're too fast, please wait for the result of previous inquiry"
-	// definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms("dummy_user", "line")
-	// if err.Error() != wantErr {
-	// 	t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q", "dummy_user", "line", definistions, synonyms, err, wantErr)
-	// }
+	// Multiple user at the time
+	go func() {
+		definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms("dummy_user2", word)
+		if definistions != wantDefinistions || synonyms != wantSynonyms {
+			t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q", "dummy_user", word, definistions, synonyms, err, wantDefinistions, wantSynonyms)
+		}
+	}()
 
+	// Same user at the time
+	time.Sleep(5 * time.Millisecond)
+	wantErr := "You're too fast, please wait for the result of previous inquiry"
+	definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
+	if err == nil || err.Error() != wantErr {
+		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q", "dummy_user", word, definistions, synonyms, err, wantErr)
+	}
+
+	//Same user after previous result
+	time.Sleep(30 * time.Millisecond)
+	wantErr = "You're too fast, please wait for the result of previous inquiry"
+	definistions, synonyms, err = serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
+	if definistions != wantDefinistions || synonyms != wantSynonyms {
+		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q", "dummy_user", word, definistions, synonyms, err, wantDefinistions, wantSynonyms)
+	}
+
+	// Some error on Dict API
+	word = "error_word"
+	wantErr = "There was error on DictService: DummyError"
+	definistions, synonyms, err = serviceController.FindDefinitionsAndSynonyms("dummy_user3", word)
+	if err == nil || err.Error() != wantErr {
+		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q", "dummy_user", word, definistions, synonyms, err, wantErr)
+	}
+}
+
+func TestConcurrentLoadServiceControllerFindDefinitionsAndSynonyms(t *testing.T) {
+	concurrent := 10000
+	dictService := &MockDickService{}
+	serviceController := NewServiceController(dictService, concurrent)
+	word := "line"
+	resultCh := make(chan bool)
+	for i := 0; i < concurrent; i++ {
+		go func(i int) {
+			userID := "user" + strconv.Itoa(i)
+			wantDefinistions := "a long, narrow mark or band"
+			wantSynonyms := "bar, dash, rule, score and underline"
+			definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms(userID, word)
+			if definistions != wantDefinistions || synonyms != wantSynonyms || err != nil {
+				t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q", userID, word, definistions, synonyms, err, wantDefinistions, wantSynonyms)
+			}
+			resultCh <- true
+		}(i)
+	}
+
+	// Wait for all results
+	for i := 0; i < concurrent; i++ {
+		<-resultCh
+	}
+
+	// More than limit
+	userID := "dummy_user1"
+	wantDefinistions := ""
+	wantSynonyms := ""
+	wantErr := "Sorry, we've reached the number of requests limit, please wait for 1 minute and try again"
+	definistions, synonyms, err := serviceController.FindDefinitionsAndSynonyms(userID, word)
+	if definistions != wantDefinistions || synonyms != wantSynonyms || err == nil || err.Error() != wantErr {
+		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q %q", userID, word, definistions, synonyms, err, wantDefinistions, wantSynonyms, wantErr)
+	}
+
+	//Wait for more than one minute, the limit should be reset
+	time.Sleep(60 * time.Second)
+	userID = "dummy_user2"
+	word = "line"
+	wantDefinistions = "a long, narrow mark or band"
+	wantSynonyms = "bar, dash, rule, score and underline"
+	definistions, synonyms, err = serviceController.FindDefinitionsAndSynonyms(userID, word)
+	if definistions != wantDefinistions || synonyms != wantSynonyms || err != nil {
+		t.Errorf("ServiceController.FindDefinitionsAndSynonyms(%q, %q) == %q, %q %q, want %q, %q", userID, word, definistions, synonyms, err, wantDefinistions, wantSynonyms)
+	}
 }

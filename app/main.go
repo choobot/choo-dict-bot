@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/line/line-bot-sdk-go/linebot"
@@ -21,16 +22,22 @@ type DictService interface {
 }
 
 type OxfordService struct {
-	appId  string
-	appKey string
+	appId          string
+	appKey         string
+	endpointPrefix string
 }
 
 type ServiceController struct {
-	dictService DictService
+	dictService     DictService
+	userProgress    map[string]int
+	concurrent      int
+	maxPerMinute    int
+	concurrentMux   sync.Mutex
+	userProgressMux sync.Mutex
 }
 
 type DictBot struct {
-	serviceController ServiceController
+	serviceController *ServiceController
 	client            *linebot.Client
 }
 
@@ -39,14 +46,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	dictService := &OxfordService{
+		appId:          os.Getenv("OXFORD_API_ID"),
+		appKey:         os.Getenv("OXFORD_API_KEY"),
+		endpointPrefix: "https://od-api.oxforddictionaries.com",
+	}
+	serviceController := NewServiceController(dictService, 60)
 	bot := &DictBot{
-		serviceController: ServiceController{
-			dictService: &OxfordService{
-				appId:  os.Getenv("OXFORD_API_ID"),
-				appKey: os.Getenv("OXFORD_API_KEY"),
-			},
-		},
-		client: client,
+		serviceController: serviceController,
+		client:            client,
 	}
 	http.HandleFunc("/callback", bot.Response)
 	port := os.Getenv("PORT")
@@ -74,15 +82,21 @@ func (this *DictBot) Response(w http.ResponseWriter, r *http.Request) {
 			switch message := event.Message.(type) {
 			case *linebot.TextMessage:
 				word := message.Text
-				definistions, synonyms, err := this.serviceController.FindDefinitionsAndSynonyms("dummy_user", word)
-				if _, err = this.client.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(definistions), linebot.NewTextMessage(synonyms)).Do(); err != nil {
-					log.Print(err)
+				definistions, synonyms, err := this.serviceController.FindDefinitionsAndSynonyms(event.Source.UserID, word)
+				if err != nil {
+					if _, err = this.client.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(err.Error())).Do(); err != nil {
+						log.Println(err)
+					}
+				} else {
+					if _, err = this.client.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(definistions), linebot.NewTextMessage(synonyms)).Do(); err != nil {
+						log.Println(err)
+					}
 				}
 			}
 		} else if event.Type == linebot.EventTypeJoin {
 			replyMessage := "Thanks for adding me. I'm Choo Dict Bot, I'm here to help you to find English word definitions and synonyms. Try to send me some words."
 			if _, err = this.client.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(replyMessage)).Do(); err != nil {
-				log.Print(err)
+				log.Println(err)
 			}
 		}
 	}
@@ -119,7 +133,7 @@ func (this *OxfordService) UnmarshallDefinitions(data []byte) string {
 }
 
 func (this *OxfordService) FindDefinitions(word string) (string, error) {
-	req, err := http.NewRequest("GET", "https://od-api.oxforddictionaries.com/api/v1/entries/en/"+word, nil)
+	req, err := http.NewRequest("GET", this.endpointPrefix+"/api/v1/entries/en/"+word, nil)
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("app_id", this.appId)
 	req.Header.Add("app_key", this.appKey)
@@ -130,7 +144,7 @@ func (this *OxfordService) FindDefinitions(word string) (string, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotFound {
-		return "", errors.New("No definition for '" + word + "'.")
+		return "No definition for '" + word + "'.", nil
 	} else if res.StatusCode == http.StatusOK {
 		body, _ := ioutil.ReadAll(res.Body)
 		return this.UnmarshallDefinitions(body), nil
@@ -177,18 +191,18 @@ func (this *OxfordService) UnmarshallSynonyms(data []byte) string {
 }
 
 func (this *OxfordService) FindSynonyms(word string) (string, error) {
-	req, err := http.NewRequest("GET", "https://od-api.oxforddictionaries.com/api/v1/entries/en/"+word+"/synonyms", nil)
+	req, err := http.NewRequest("GET", this.endpointPrefix+"/api/v1/entries/en/"+word+"/synonyms", nil)
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("app_id", this.appId)
 	req.Header.Add("app_key", this.appKey)
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		log.Println(err)
+		return "", err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotFound {
-		return "", errors.New("No synonyms for '" + word + "'.")
+		return "No synonyms for '" + word + "'.", nil
 	} else if res.StatusCode == http.StatusOK {
 		body, _ := ioutil.ReadAll(res.Body)
 		return this.UnmarshallSynonyms(body), nil
@@ -219,23 +233,47 @@ func (this *OxfordService) MapToString(values map[string]int) string {
 	return text
 }
 
-var userProgress = map[string]int{}
+func NewServiceController(dictService DictService, maxPerMinute int) *ServiceController {
+	serviceController := ServiceController{
+		userProgress: map[string]int{},
+		concurrent:   0,
+		maxPerMinute: maxPerMinute,
+		dictService:  dictService,
+	}
+	limiter := time.Tick(time.Minute)
+	go func() {
+		for {
+			<-limiter
+			serviceController.concurrentMux.Lock()
+			serviceController.concurrent = 0
+			serviceController.concurrentMux.Unlock()
+		}
+	}()
+	return &serviceController
+}
 
 func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word string) (string, string, error) {
-	var mutex = &sync.Mutex{}
-	mutex.Lock()
-	progress := userProgress[userID]
+	if this.concurrent >= this.maxPerMinute {
+		return "", "", errors.New("Sorry, we've reached the number of requests limit, please wait for 1 minute and try again")
+	}
+	this.userProgressMux.Lock()
+	progress := this.userProgress[userID]
+	this.userProgressMux.Unlock()
 	if progress == 0 {
-		userProgress[userID] = 2
-		mutex.Unlock()
+		this.concurrentMux.Lock()
+		this.concurrent++
+		this.concurrentMux.Unlock()
+		this.userProgressMux.Lock()
+		this.userProgress[userID] = 2
+		this.userProgressMux.Unlock()
 		word = strings.Split(word, " ")[0]
-		fmt.Println("Looking for: " + word)
 		definistionsCh := make(chan string)
 		synonymsCh := make(chan string)
+		errorCh := make(chan error)
 		go func() {
 			res, err := this.dictService.FindDefinitions(word)
 			if err != nil {
-				definistionsCh <- err.Error()
+				errorCh <- err
 			} else {
 				definistionsCh <- res
 			}
@@ -244,7 +282,7 @@ func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word st
 		go func() {
 			res, err := this.dictService.FindSynonyms(word)
 			if err != nil {
-				synonymsCh <- err.Error()
+				errorCh <- err
 			} else {
 				synonymsCh <- res
 			}
@@ -255,24 +293,31 @@ func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word st
 		for {
 			select {
 			case definistions = <-definistionsCh:
-				mutex.Lock()
-				userProgress[userID]--
-				mutex.Unlock()
-			case synonyms = <-synonymsCh:
-				mutex.Lock()
-				userProgress[userID]--
-				mutex.Unlock()
-			default:
-				mutex.Lock()
-				if userProgress[userID] == 0 {
+				this.userProgressMux.Lock()
+				this.userProgress[userID]--
+				userProgress := this.userProgress[userID]
+				this.userProgressMux.Unlock()
+				if userProgress == 0 {
 					break Loop
 				}
-				mutex.Unlock()
+			case synonyms = <-synonymsCh:
+				this.userProgressMux.Lock()
+				this.userProgress[userID]--
+				userProgress := this.userProgress[userID]
+				this.userProgressMux.Unlock()
+				if userProgress == 0 {
+					break Loop
+				}
+
+			case error := <-errorCh:
+				this.userProgressMux.Lock()
+				this.userProgress[userID] = 0
+				this.userProgressMux.Unlock()
+				return "", "", errors.New("There was error on DictService: " + error.Error())
 			}
 		}
 		return definistions, synonyms, nil
 	} else {
-		mutex.Unlock()
 		return "", "", errors.New("You're too fast, please wait for the result of previous inquiry")
 	}
 }
