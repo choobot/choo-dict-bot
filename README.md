@@ -4,8 +4,6 @@
 - The webhook URL for Line Messaging API will be https://choo-dict-bot.herokuapp.com/callback
 - Bot ID is [@lzp7933a](http://line.me/ti/p/~@lzp7933a)
 
-![alt text](https://qr-official.line.me/M/fdAHRY11Na.png "QR Code")
-
 ## Prerequisites for Development
 - Mac or Linux which can run shell script
 - Docker
