@@ -4,8 +4,8 @@ WORKDIR ${SRC_DIR}
 RUN apk add build-base && \
     apk add git
 COPY app/ ${SRC_DIR}
+ENTRYPOINT [ "/bin/sh","-c" ]
+CMD [ "/go/bin/app" ]
 RUN cd ${SRC_DIR} && \
     go get ./... && \
     go install -v
-ENTRYPOINT [ "/bin/sh","-c" ]
-CMD [ "/go/bin/app" ]
