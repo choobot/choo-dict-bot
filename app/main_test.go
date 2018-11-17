@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -175,8 +176,8 @@ func TestOxfordServiceFindDefinitions(t *testing.T) {
 		endpointPrefix: "https://dummydomain",
 	}
 	_, err = service.FindDefinitions(word)
-	wantErr = "Get https://dummydomain/api/v1/entries/en/dummy: dial tcp: lookup dummydomain: no such host"
-	if err.Error() != wantErr {
+	wantErr = "no such host"
+	if !strings.Contains(err.Error(), wantErr) {
 		t.Errorf("OxfordService.FindDefinitions(%q) == %q , want %q", word, err, wantErr)
 	}
 }
@@ -235,8 +236,8 @@ func TestOxfordServiceFindSynonyms(t *testing.T) {
 		endpointPrefix: "https://dummydomain",
 	}
 	_, err = service.FindSynonyms(word)
-	wantErr = "Get https://dummydomain/api/v1/entries/en/dummy/synonyms: dial tcp: lookup dummydomain: no such host"
-	if err.Error() != wantErr {
+	wantErr = "no such host"
+	if !strings.Contains(err.Error(), wantErr) {
 		t.Errorf("OxfordService.FindSynonyms(%q) == %q , want %q", word, err, wantErr)
 	}
 }

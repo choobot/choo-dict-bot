@@ -7,5 +7,5 @@ COPY app/ ${SRC_DIR}
 ENTRYPOINT [ "/bin/sh","-c" ]
 CMD [ "/go/bin/app" ]
 RUN cd ${SRC_DIR} && \
-    go get ./... && \
+    go get -t ./... && \
     go install -v
