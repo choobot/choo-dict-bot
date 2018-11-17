@@ -51,7 +51,7 @@ func main() {
 		appKey:         os.Getenv("OXFORD_API_KEY"),
 		endpointPrefix: "https://od-api.oxforddictionaries.com",
 	}
-	serviceController := NewServiceController(dictService, 60)
+	serviceController := NewServiceController(dictService, 30)
 	bot := &DictBot{
 		serviceController: serviceController,
 		client:            client,
@@ -259,9 +259,11 @@ func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word st
 	this.userProgressMux.Lock()
 	progress := this.userProgress[userID]
 	this.userProgressMux.Unlock()
-	if progress == 0 {
+	if progress > 0 {
+		return "", "", errors.New("You're too fast, please slow down.")
+	} else {
 		this.concurrentMux.Lock()
-		this.concurrent += 2
+		this.concurrent++
 		this.concurrentMux.Unlock()
 		this.userProgressMux.Lock()
 		this.userProgress[userID] = 2
@@ -319,7 +321,5 @@ func (this *ServiceController) FindDefinitionsAndSynonyms(userID string, word st
 			}
 		}
 		return definistions, synonyms, nil
-	} else {
-		return "", "", errors.New("You're too fast, please slow down.")
 	}
 }
