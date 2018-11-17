@@ -16,8 +16,8 @@
 ## Local Running and Expose to the internet
 - Config environment variables in env.sh
 - $ ./run.sh
-- $ ./expose.sh (in the new Terminal)
 - The webhook URL for LINE Messaging API will be https://choo-dict-bot.serveo.net/callback
+- Config webhook URL for LINE Messaging API
 
 ## Unit Testing
 - Config environment variables in env.sh
