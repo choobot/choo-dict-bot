@@ -19,6 +19,7 @@ func (this mockServiceController) FindDefinitionsAndSynonyms(userID string, word
 }
 
 func TestDictBotResponse(t *testing.T) {
+	wantErr := errors.New("linebot: APIError 400 Invalid reply token")
 	client, _ := linebot.New(os.Getenv("LINE_BOT_SECRET"), os.Getenv("LINE_BOT_TOKEN"))
 	serviceController := mockServiceController{}
 	bot := &DictBot{
@@ -40,13 +41,13 @@ func TestDictBotResponse(t *testing.T) {
 		Source: &linebot.EventSource{
 			UserID: "dummy",
 		},
-		ReplyToken: "",
+		ReplyToken: "dummy",
 	}
 	events = append(events, &event)
 	bot.Response(events)
 	err = bot.Response(events)
-	if err == nil {
-		t.Errorf("DictBot.Response(%v) == %v, want %v", events, err, nil)
+	if err == nil || err.Error() != wantErr.Error() {
+		t.Errorf("DictBot.Response(%v) == %v, want %v", events, err, wantErr)
 	}
 
 	event = linebot.Event{
@@ -57,12 +58,12 @@ func TestDictBotResponse(t *testing.T) {
 		Source: &linebot.EventSource{
 			UserID: "dummy",
 		},
-		ReplyToken: "",
+		ReplyToken: "dummy",
 	}
 	events = append(events, &event)
 	err = bot.Response(events)
-	if err == nil {
-		t.Errorf("DictBot.Response(%v) == %v, want %v", events, err, nil)
+	if err == nil || err.Error() != wantErr.Error() {
+		t.Errorf("DictBot.Response(%v) == %v, want %v", events, err, wantErr)
 	}
 
 	event = linebot.Event{
@@ -73,11 +74,11 @@ func TestDictBotResponse(t *testing.T) {
 		Source: &linebot.EventSource{
 			UserID: "dummy",
 		},
-		ReplyToken: "",
+		ReplyToken: "dummy",
 	}
 	events = append(events, &event)
 	err = bot.Response(events)
-	if err == nil {
-		t.Errorf("DictBot.Response(%v) == %v, want %v", events, err, nil)
+	if err == nil || err.Error() != wantErr.Error() {
+		t.Errorf("DictBot.Response(%v) == %v, want %v", events, err, wantErr)
 	}
 }
